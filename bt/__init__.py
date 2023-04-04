@@ -6,6 +6,7 @@ from .backtest import Backtest, run
 from .core import Strategy, Algo, AlgoStack, FixedIncomeStrategy
 from .core import Security, FixedIncomeSecurity, CouponPayingSecurity
 from .core import HedgeSecurity, CouponPayingHedgeSecurity
+from .cloud import push
 
 import ffn
 from ffn import utils, data, get, merge

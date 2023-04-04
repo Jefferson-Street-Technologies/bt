@@ -9,6 +9,8 @@ import pandas as pd
 import numpy as np
 from matplotlib import pyplot as plt
 import pyprind
+import json
+from typing import Union
 
 
 def run(*backtests):
@@ -77,6 +79,35 @@ def benchmark_random(backtest, random_strategy, nsim=100):
     res = RandomBenchmarkResult(*bts)
 
     return res
+
+def data_to_dict(data: Union[pd.DataFrame, pd.Series], are_transactions=False) -> dict:
+    """
+    Make data compliant with json
+    """
+    TIMESTAMP_FORMAT = '%m-%d-%Y %H:%M:%S'
+    df = data.copy()
+    if are_transactions:
+        out = df.reset_index()
+        out['Date'] = out['Date'].dt.strftime(TIMESTAMP_FORMAT)
+        out = out.to_dict(orient='list')
+    else:
+
+        df.index = df.index.strftime(TIMESTAMP_FORMAT).astype(str)
+        if isinstance(df, pd.Series):
+            out = {
+                'timestamp': df.index.to_list(),
+                'value': df.values.tolist()
+            }
+        else:
+            out = df.stack().reset_index().rename(
+                {
+                    'level_0': 'timestamp',
+                    'level_1': 'security',
+                    0: 'value'
+                },
+                axis=1
+            ).to_dict(orient='list')
+    return out
 
 
 class Backtest(object):
@@ -217,6 +248,34 @@ class Backtest(object):
                 )
                 new = pd.concat([empty_row, old])
                 self.additional_data[k] = new
+
+    def to_json(self):
+        prices: dict = data_to_dict(self.stats.prices)
+        stats_srs: pd.Series = self.stats.stats.astype(str).drop(['start', 'end'])
+        stats = {
+            'metric': stats_srs.index.to_list(),
+            'value': stats_srs.values.tolist()
+        }
+        positions: dict = data_to_dict(self.positions)
+        weights: dict = data_to_dict(self.weights)
+        security_weights: dict = data_to_dict(self.security_weights)
+        turnover: dict = data_to_dict(self.turnover)
+        herfindahl: dict = data_to_dict(self.herfindahl_index)
+        transactions: dict = data_to_dict(self.strategy.get_transactions(), True)
+
+        aggregate = {
+            'name': self.name,
+            'prices': prices,
+            'stats': stats,
+            'positions': positions,
+            'weights': weights,
+            'security_weights': security_weights,
+            'turnover': turnover,
+            'herfindahl_index': herfindahl,
+            'transactions': transactions
+        }
+        data = json.dumps(aggregate)
+        return data
 
     def run(self):
         """
